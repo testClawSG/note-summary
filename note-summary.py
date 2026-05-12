@@ -1,7 +1,3 @@
-
-## send_summary_text.py
-
-```python
 #!/usr/bin/env python3
 import argparse
 import json
