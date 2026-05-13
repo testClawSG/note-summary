@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import socket
 import sys
-import urllib.error
-import urllib.request
 
 
-TARGET_URL = "http://127.0.0.1:8090/"
+TARGET_HOST = "100.107.121.24"
+TARGET_PORT = 8090
 
 
 def send_content(content: str) -> None:
@@ -18,39 +18,37 @@ def send_content(content: str) -> None:
 
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
-    request = urllib.request.Request(
-        TARGET_URL,
-        data=data,
-        headers={
-            "Content-Type": "application/json; charset=utf-8",
-        },
-        method="POST",
-    )
-
     try:
-        with urllib.request.urlopen(request, timeout=5) as response:
-            body = response.read().decode("utf-8", errors="replace")
-            print(f"Sent to {TARGET_URL}")
-            print(f"Status: {response.getcode()}")
-            print(body)
+        with socket.create_connection((TARGET_HOST, TARGET_PORT), timeout=5) as sock:
+            # 直接发送 JSON 数据
+            sock.sendall(data)
 
-    except urllib.error.HTTPError as error:
-        print(f"HTTP error: {error.code}", file=sys.stderr)
-        print(error.read().decode("utf-8", errors="replace"), file=sys.stderr)
+            # 可选：关闭写入方向，告诉服务端发送完了
+            sock.shutdown(socket.SHUT_WR)
+
+            # 读取服务端返回
+            response = sock.recv(4096).decode("utf-8", errors="replace")
+
+            print(f"Sent to tcp://{TARGET_HOST}:{TARGET_PORT}")
+            print("Response:")
+            print(response)
+
+    except socket.timeout:
+        print("TCP connection timeout", file=sys.stderr)
         sys.exit(1)
 
-    except urllib.error.URLError as error:
-        print(f"Connection error: {error.reason}", file=sys.stderr)
+    except ConnectionRefusedError:
+        print(f"Connection refused: {TARGET_HOST}:{TARGET_PORT}", file=sys.stderr)
         sys.exit(1)
 
-    except TimeoutError:
-        print("Request timeout", file=sys.stderr)
+    except OSError as error:
+        print(f"TCP error: {error}", file=sys.stderr)
         sys.exit(1)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Send summary-related text directly to 127.0.0.1:8090"
+        description="Send summary-related text directly via TCP"
     )
 
     parser.add_argument(
